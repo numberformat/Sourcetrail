@@ -196,6 +196,32 @@ if (WIN32)
 	find_package(Qt5 ${QT_MIN_VERSION} COMPONENTS WinExtras REQUIRED)
 endif()
 
+# Conan's CMakeDeps generator defines the Qt targets but does not set the Qt5${component}_FOUND
+# variables that qt5_use_modules() checks. Mark the requested components as found if their
+# corresponding targets exist so we can keep using the upstream CMake logic unchanged.
+if(DEFINED Qt5_DIR)
+	set(_qt_checked_components Core Gui Widgets PrintSupport Network Svg)
+	foreach(_qt_component ${_qt_checked_components})
+		if(TARGET "Qt5::${_qt_component}")
+			if(NOT Qt5${_qt_component}_FOUND)
+				set(Qt5${_qt_component}_FOUND TRUE)
+			endif()
+			if(NOT Qt5${_qt_component}_LIBRARIES)
+				set(Qt5${_qt_component}_LIBRARIES "Qt5::${_qt_component}")
+			endif()
+		endif()
+	endforeach()
+	if(WIN32 AND TARGET Qt5::WinExtras)
+		if(NOT Qt5WinExtras_FOUND)
+			set(Qt5WinExtras_FOUND TRUE)
+		endif()
+		if(NOT Qt5WinExtras_LIBRARIES)
+			set(Qt5WinExtras_LIBRARIES "Qt5::WinExtras")
+		endif()
+	endif()
+	unset(_qt_checked_components)
+endif()
+
 if(Qt5Widgets_FOUND)
 	message(STATUS "Found Qt ${Qt5Widgets_VERSION_STRING}")
 
@@ -741,6 +767,30 @@ target_include_directories(${APP_PROJECT_NAME} SYSTEM
 	"${EXTERNAL_C_INCLUDE_PATHS}"
 )
 
+function(resolve_qt_target_path out_var candidate_target fallback_target)
+	if(candidate_target AND TARGET ${candidate_target})
+		set(_qt_target ${candidate_target})
+	elseif(TARGET ${fallback_target})
+		set(_qt_target ${fallback_target})
+	else()
+		set(${out_var} "" PARENT_SCOPE)
+		return()
+	endif()
+
+	foreach(_qt_location_prop LOCATION IMPORTED_LOCATION_RELEASE IMPORTED_LOCATION_DEBUG IMPORTED_LOCATION)
+		get_target_property(_qt_path ${_qt_target} ${_qt_location_prop})
+		if(_qt_path)
+			break()
+		endif()
+	endforeach()
+
+	if(_qt_path)
+		get_filename_component(_qt_path "${_qt_path}" REALPATH)
+	endif()
+
+	set(${out_var} "${_qt_path}" PARENT_SCOPE)
+endfunction()
+
 # Use the Widgets module from Qt 5.
 qt5_use_modules(${APP_PROJECT_NAME} Widgets)
 qt5_use_modules(${APP_PROJECT_NAME} Network)
@@ -763,25 +813,21 @@ if (APPLE)
 	set(MACOS_BINARY_NAME ${APP_PROJECT_NAME})
 	set(MACOS_INDEXER_BINARY_NAME ${APP_INDEXER_NAME})
 
-	get_property(QT_CORE_PATH TARGET ${Qt5Core_LIBRARIES} PROPERTY LOCATION)
-	get_filename_component(QT_CORE_PATH ${QT_CORE_PATH} REALPATH)
+	resolve_qt_target_path(QT_CORE_PATH "${Qt5Core_LIBRARIES}" "Qt5::Core")
+	resolve_qt_target_path(QT_GUI_PATH "${Qt5Gui_LIBRARIES}" "Qt5::Gui")
+	resolve_qt_target_path(QT_WIDGETS_PATH "${Qt5Widgets_LIBRARIES}" "Qt5::Widgets")
+	resolve_qt_target_path(QT_PRINT_PATH "${Qt5PrintSupport_LIBRARIES}" "Qt5::PrintSupport")
+	resolve_qt_target_path(QT_NETWORK_PATH "${Qt5Network_LIBRARIES}" "Qt5::Network")
+	resolve_qt_target_path(QT_SVG_PATH "${Qt5Svg_LIBRARIES}" "Qt5::Svg")
 
-	get_property(QT_GUI_PATH TARGET ${Qt5Gui_LIBRARIES} PROPERTY LOCATION)
-	get_filename_component(QT_GUI_PATH ${QT_GUI_PATH} REALPATH)
-
-	get_property(QT_WIDGETS_PATH TARGET ${Qt5Widgets_LIBRARIES} PROPERTY LOCATION)
-	get_filename_component(QT_WIDGETS_PATH ${QT_WIDGETS_PATH} REALPATH)
-
-	get_property(QT_PRINT_PATH TARGET ${Qt5PrintSupport_LIBRARIES} PROPERTY LOCATION)
-	get_filename_component(QT_PRINT_PATH ${QT_PRINT_PATH} REALPATH)
-
-	get_property(QT_NETWORK_PATH TARGET ${Qt5Network_LIBRARIES} PROPERTY LOCATION)
-	get_filename_component(QT_NETWORK_PATH ${QT_NETWORK_PATH} REALPATH)
-
-	get_property(QT_SVG_PATH TARGET ${Qt5Svg_LIBRARIES} PROPERTY LOCATION)
-	get_filename_component(QT_SVG_PATH ${QT_SVG_PATH} REALPATH)
-
-	list(APPEND MACOS_QT_FRAMEWORKS ${QT_CORE_PATH} ${QT_GUI_PATH} ${QT_WIDGETS_PATH} ${QT_PRINT_PATH} ${QT_NETWORK_PATH} ${QT_SVG_PATH})
+	list(APPEND MACOS_QT_FRAMEWORKS
+		${QT_CORE_PATH}
+		${QT_GUI_PATH}
+		${QT_WIDGETS_PATH}
+		${QT_PRINT_PATH}
+		${QT_NETWORK_PATH}
+		${QT_SVG_PATH}
+	)
 	string(REPLACE ";" " " MACOS_QT_FRAMEWORKS "${MACOS_QT_FRAMEWORKS}")
 
 	set(MACOS_BOOST_DIR "${Boost_INCLUDE_DIR}")

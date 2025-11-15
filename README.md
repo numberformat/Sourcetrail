@@ -100,6 +100,40 @@ Building Sourcetrail requires several dependencies to be in place on your machin
     * __Reason__: Used for rendering the GUI and for starting additional (indexer) processes.
     * __Prebuilt Download__: http://download.qt.io/official_releases/qt/
 
+### New: Fetching Boost and Qt with Conan (recommended)
+
+Instead of installing Boost and Qt manually, you can now pull them in with [Conan 2](https://conan.io/). The `conanfile.py` in the repository declares the minimal dependency set (Boost filesystem/system/program_options/date_time and Qt Widgets/Network/PrintSupport/Svg/WinExtras on Windows) and pins them to `boost/1.84.0` and `qt/5.15.9`.
+
+1. Install Conan 2 (`pip install conan`).
+2. Detect a default profile once: `conan profile detect --force`.
+3. From the repository root run (adjust build type and output folder as you prefer):
+    ```
+    conan install . --output-folder=build/Release --build=missing -s build_type=Release
+    ```
+    This step downloads Boost and Qt, configures the `CMakeDeps` + `CMakeToolchain` files and keeps the resulting toolchain in `<output-folder>/<build_type>/generators/conan_toolchain.cmake` (for the command above that is `build/Release/build/Release/generators/conan_toolchain.cmake`).
+4. Configure CMake pointing to the generated toolchain file. Example for Unix:
+    ```
+    cmake -S . -B build/Release -DCMAKE_TOOLCHAIN_FILE=build/Release/build/Release/generators/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+    ```
+    On Windows configure the generator that you need while still passing `-DCMAKE_TOOLCHAIN_FILE`.
+5. Build with your usual workflow (`cmake --build build/Release --target Sourcetrail`, Visual Studio, etc.).
+
+All optional dependencies described below can stay disabled until you need the respective language package.
+
+#### macOS 15+ prerequisites
+
+Apple's current Command Line Tools ship most C++ standard library headers inside the SDK instead of the traditional `/usr/include/c++` folder. Before running `conan install` on macOS 14/15 make sure to expose those headers and pass your current deployment target, otherwise packages such as Boost, libpq or Qt will fail to build:
+
+```
+export SDKROOT=$(xcrun --show-sdk-path)
+export CPLUS_INCLUDE_PATH="$SDKROOT/usr/include/c++/v1"
+conan install . --output-folder=build/Release --build=missing -s build_type=Release -s os.version=$(sw_vers -productVersion | cut -d. -f1-2)
+```
+
+Setting `os.version` (or updating the default Conan profile with that setting) propagates a matching `MACOSX_DEPLOYMENT_TARGET`, which avoids `-Wunguarded-availability` build failures for dependencies such as libpq and Qt.
+
+The provided `conanfile.py` toggles off Qt features that would otherwise pull MySQL/PostgreSQL/ODBC/OpenAL into the build. If you need those plugins later simply flip the corresponding `qt/*:with_` options when running `conan install`.
+
 ### Building
 
 #### On Windows
@@ -109,7 +143,8 @@ Building Sourcetrail requires several dependencies to be in place on your machin
     $ cd Sourcetrail
     $ mkdir -p build/win64
     $ cd build/win64
-    $ cmake -G "Visual Studio 15 2017 Win64" -DBOOST_ROOT=<path/to/boost_1_67_0> -DQt5_DIR=<path/to/Qt/version/platform/compiler/lib/cmake/Qt5> ../..
+    $ conan install ../.. --build=missing -s build_type=Release
+    $ cmake -G "Visual Studio 15 2017 Win64" -DCMAKE_TOOLCHAIN_FILE=Release/generators/conan_toolchain.cmake ../..
     ```
     _Hint: If you are using the CMake GUI, we recommend that you activate advanced mode. Also you may be required to add some of the defines via the "Add Entry" button._
 
@@ -122,7 +157,8 @@ Building Sourcetrail requires several dependencies to be in place on your machin
     $ cd Sourcetrail
     $ mkdir -p build/Release
     $ cd build/Release
-    $ cmake -DCMAKE_BUILD_TYPE="Release" -DBOOST_ROOT=<path/to/boost_1_67_0> -DQt5_DIR=<path/to/Qt/version/platform/compiler/lib/cmake/Qt5> ../..
+    $ conan install ../.. --build=missing -s build_type=Release
+    $ cmake -DCMAKE_BUILD_TYPE="Release" -DCMAKE_TOOLCHAIN_FILE=Release/generators/conan_toolchain.cmake ../..
     ```
 * Now start the build with:
     ```
@@ -132,6 +168,8 @@ Building Sourcetrail requires several dependencies to be in place on your machin
 ### Running
 
 * Run Sourcetrail from within the build directory. During execution Sourcetrail needs resources from `bin/app/data` and `bin/app/user`. CMake creates symlinks within the build directory that make these directories accessible.
+
+_If you prefer to provide Boost and Qt manually, skip the `conan install` step and continue passing `-DBOOST_ROOT` and `-DQt5_DIR` the way the project was configured previously._
 
 
 ## Enable C/C++ Language Support

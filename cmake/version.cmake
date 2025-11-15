@@ -27,11 +27,22 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/.git")
         COMMAND ${GIT_EXECUTABLE} describe --long --match "[0-9]*" HEAD
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         OUTPUT_VARIABLE GIT_VERSION_NUMBER
+        RESULT_VARIABLE GIT_DESCRIBE_RESULT
         OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
     )
-    string(REGEX REPLACE "^([0-9]+)\\..*" "\\1" VERSION_YEAR "${GIT_VERSION_NUMBER}")
-    string(REGEX REPLACE "^[0-9]+\\.([0-9]+).*" "\\1" VERSION_MINOR "${GIT_VERSION_NUMBER}")
-    string(REGEX REPLACE "^[0-9]+\\.[0-9]+-([0-9]+).*" "\\1" VERSION_COMMIT "${GIT_VERSION_NUMBER}")
+    if(GIT_DESCRIBE_RESULT EQUAL 0 AND NOT "${GIT_VERSION_NUMBER}" STREQUAL "")
+        string(REGEX REPLACE "^([0-9]+)\\..*" "\\1" VERSION_YEAR "${GIT_VERSION_NUMBER}")
+        string(REGEX REPLACE "^[0-9]+\\.([0-9]+).*" "\\1" VERSION_MINOR "${GIT_VERSION_NUMBER}")
+        string(REGEX REPLACE "^[0-9]+\\.[0-9]+-([0-9]+).*" "\\1" VERSION_COMMIT "${GIT_VERSION_NUMBER}")
+    else()
+        message(WARNING "Falling back to 0.0.0 version: unable to parse git describe output")
+        set(GIT_VERSION_NUMBER "")
+        set(VERSION_YEAR "0")
+        set(VERSION_MINOR "0")
+        set(VERSION_COMMIT "0")
+    endif()
 
 else(EXISTS "${CMAKE_SOURCE_DIR}/.git")
     set(GIT_BRANCH "")
