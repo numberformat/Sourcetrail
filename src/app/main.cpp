@@ -1,6 +1,7 @@
 #include "includes.h"
 
 #include <csignal>
+#include <cstdlib>
 #include <iostream>
 
 #include "language_packages.h"
@@ -97,8 +98,35 @@ int main(int argc, char* argv[])
 	// std::wcout << p.first << " " << p.second << std::endl;
 	// return 0;
 
+#ifdef _WIN32
+	{
+		wchar_t modulePath[MAX_PATH] = {0};
+		DWORD len = GetModuleFileNameW(nullptr, modulePath, MAX_PATH);
+		if (len > 0)
+		{
+			wchar_t* lastBackslash = wcsrchr(modulePath, L'\\');
+			wchar_t* lastForwardslash = wcsrchr(modulePath, L'/');
+			wchar_t* lastSlash = lastBackslash;
+			if (lastForwardslash && lastForwardslash > lastSlash)
+			{
+				lastSlash = lastForwardslash;
+			}
+			if (lastSlash)
+			{
+				*lastSlash = L'\0';
+				QString appDir = QString::fromWCharArray(modulePath);
+				QCoreApplication::addLibraryPath(appDir);
 
+				std::wstring pluginRoot(modulePath);
+				_putenv_s("QT_PLUGIN_PATH", utility::encodeToUtf8(pluginRoot).c_str());
+				std::wstring platformPath = pluginRoot + L"\\platforms";
+				_putenv_s("QT_QPA_PLATFORM_PLUGIN_PATH", utility::encodeToUtf8(platformPath).c_str());
+			}
+		}
+	}
+#else
 	QCoreApplication::addLibraryPath(QStringLiteral("."));
+#endif
 
 #pragma warning(push)
 #pragma warning(disable : 4996)

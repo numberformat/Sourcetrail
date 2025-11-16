@@ -85,6 +85,14 @@ Building Sourcetrail requires several dependencies to be in place on your machin
     * __Reason__: Used to speed up rebuilds if found in `PATH`
     * __Download__: https://ccache.dev/download.html
 
+On Windows
+
+```ps1
+choco install visualstudio2022buildtools --package-parameters "--includeRecommended --includeOptional --quiet --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows10SDK.22621"
+
+"%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" amd64
+```
+
 ### Required dependencies
 
 * __Boost 1.67__

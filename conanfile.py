@@ -1,5 +1,6 @@
 from conan import ConanFile
 from conan.tools.cmake import CMake, cmake_layout
+from conan.errors import ConanException
 
 
 class SourcetrailConan(ConanFile):
@@ -32,8 +33,10 @@ class SourcetrailConan(ConanFile):
     def config_options(self):
         if self.settings.os == "Windows":
             qt_opts = self.options["qt"]
-            if hasattr(qt_opts, "qtwinextras"):
+            try:
                 qt_opts.qtwinextras = True
+            except ConanException:
+                self.output.warning("Qt recipe does not expose qtwinextras option; skipping.")
 
     def build(self):
         cmake = CMake(self)
